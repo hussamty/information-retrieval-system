@@ -1,0 +1,326 @@
+{
+	"info": {
+		"_postman_id": "f5a0c3e1-a0c5-442b-8a8b-12a8f8d7b3e9",
+		"name": "IR Project SOA",
+		"description": "مجموعة طلبات لاختبار خدمات نظام استرجاع المعلومات.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Service Health Checks",
+			"item": [
+				{
+					"name": "Data Loader API Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://127.0.0.1:8001/docs",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "8001",
+							"path": [
+								"docs"
+							]
+						},
+						"description": "يفتح صفحة التوثيق التلقائي لخدمة تحميل البيانات للتأكد من أنها تعمل."
+					},
+					"response": []
+				},
+				{
+					"name": "Representation API Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://127.0.0.1:8002/docs",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "8002",
+							"path": [
+								"docs"
+							]
+						},
+						"description": "يفتح صفحة التوثيق التلقائي لخدمة بناء النماذج للتأكد من أنها تعمل."
+					},
+					"response": []
+				},
+				{
+					"name": "Search API Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://127.0.0.1:8003/docs",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "8003",
+							"path": [
+								"docs"
+							]
+						},
+						"description": "يفتح صفحة التوثيق التلقائي لخدمة البحث للتأكد من أنها تعمل."
+					},
+					"response": []
+				}
+			],
+			"description": "تأكد من أن جميع الخدمات تعمل قبل المتابعة."
+		},
+		{
+			"name": "[Step 1] Load and Process Dataset",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"dataset_name\": \"antique\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8001/load-dataset/",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8001",
+					"path": [
+						"load-dataset",
+						""
+					]
+				},
+				"description": "يبدأ عملية تحميل ومعالجة مجموعة بيانات محددة. غيّر القيمة من \"antique\" إلى \"beir/quora\" حسب الحاجة. هذه العملية تعمل في الخلفية، راقب الطرفية للمتابعة."
+			},
+			"response": [
+				{
+					"name": "Example Response",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"dataset_name\": \"antique\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://127.0.0.1:8001/load-dataset/",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "8001",
+							"path": [
+								"load-dataset",
+								""
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "content-length",
+							"value": "139"
+						},
+						{
+							"key": "content-type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"message\": \"Data loading and processing for 'antique' has started in the background. Monitor the console of the data_loader_api for progress.\"\n}"
+				}
+			]
+		},
+		{
+			"name": "[Step 2] Build Representations",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"dataset_name\": \"antique\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8002/build-representations/",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8002",
+					"path": [
+						"build-representations",
+						""
+					]
+				},
+				"description": "يبدأ عملية بناء جميع النماذج والفهارس لمجموعة بيانات محددة. هذه العملية تعمل في الخلفية، راقب الطرفية للمتابعة."
+			},
+			"response": [
+				{
+					"name": "Example Response",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"dataset_name\": \"antique\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://127.0.0.1:8002/build-representations/",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "8002",
+							"path": [
+								"build-representations",
+								""
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "content-length",
+							"value": "146"
+						},
+						{
+							"key": "content-type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"message\": \"Representation building for 'antique' has started in the background. Monitor the console of the representation_api for progress.\"\n}"
+				}
+			]
+		},
+		{
+			"name": "[Step 3] Perform Search",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"dataset_name\": \"antique\",\n    \"query\": \"what is the best way to learn programming\",\n    \"model_type\": \"hybrid\",\n    \"top_k\": 10,\n    \"k1\": 1.6,\n    \"b\": 0.75\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8003/search/",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8003",
+					"path": [
+						"search",
+						""
+					]
+				},
+				"description": "ينفذ عملية بحث. يمكنك تغيير `dataset_name`, `query`, `model_type` ('tfidf', 'bm25', 'bert', 'hybrid'), ومعاملات BM25."
+			},
+			"response": [
+				{
+					"name": "Example Response",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"dataset_name\": \"antique\",\n    \"query\": \"what is the best way to learn programming\",\n    \"model_type\": \"hybrid\",\n    \"top_k\": 5\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://127.0.0.1:8003/search/",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "8003",
+							"path": [
+								"search",
+								""
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "content-length",
+							"value": "249"
+						},
+						{
+							"key": "content-type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"results\": [\n        {\n            \"doc_id\": \"2283257\",\n            \"score\": 0.03278688524590164\n        },\n        {\n            \"doc_id\": \"3469601\",\n            \"score\": 0.03225806451612903\n        },\n        {\n            \"doc_id\": \"2786968\",\n            \"score\": 0.031746031746031744\n        },\n        {\n            \"doc_id\": \"369077\",\n            \"score\": 0.01639344262295082\n        },\n        {\n            \"doc_id\": \"2204786\",\n            \"score\": 0.016129032258064516\n        }\n    ]\n}"
+				}
+			]
+		}
+	]
+}
+

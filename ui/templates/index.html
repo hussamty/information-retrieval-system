@@ -8,9 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Cairo', sans-serif; background-color: #f0f4f8; }
-        .loader { border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        .loader { border: 5px solid #f3f3f3; border-top: 5px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        /* Style for range slider */
         input[type=range] { -webkit-appearance: none; margin: 10px 0; width: 100%; }
         input[type=range]:focus { outline: none; }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 8.4px; cursor: pointer; background: #3b82f6; border-radius: 1.3px; }
@@ -25,14 +24,14 @@
         </div>
 
         <div class="bg-white p-6 rounded-2xl shadow-lg max-w-3xl mx-auto">
-            <!-- Row 1: Dataset and Model -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
                     <label for="dataset" class="block text-gray-700 font-bold mb-2">اختر مجموعة البيانات:</label>
                     <select id="dataset" class="shadow-sm appearance-none border rounded-lg w-full py-2 px-3 text-gray-700">
                         <option value="antique">Antique (أسئلة وأجوبة عامة)</option>
                         <option value="beir/quora">Quora (تكرار الأسئلة)</option>
-                    </select>
+                        <option value="lotte/lifestyle/dev">LOTTE (Lifestyle)</option>
+                        </select>
                 </div>
                 <div>
                     <label for="model_type" class="block text-gray-700 font-bold mb-2">اختر نموذج البحث:</label>
@@ -45,7 +44,6 @@
                 </div>
             </div>
             
-            <!-- Parameters Section -->
             <div id="params-section" class="space-y-4 mb-4">
                 <div id="bm25-params" class="grid grid-cols-1 md:grid-cols-2 gap-4 hidden">
                     <div>
@@ -63,7 +61,6 @@
                 </div>
             </div>
 
-            <!-- Query Input with Suggestions -->
             <div class="mb-4">
                 <label for="query" class="block text-gray-700 font-bold mb-2">أدخل استعلام البحث:</label>
                 <div class="relative">
@@ -72,7 +69,6 @@
                 </div>
             </div>
             
-            <!-- Search Button and NER Toggle -->
             <div class="flex items-center justify-between">
                 <div class="flex items-center">
                     <input id="ner-rerank-toggle" type="checkbox" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500">
@@ -92,6 +88,7 @@
         // --- Setup Elements ---
         const searchBtn = document.getElementById('search-btn');
         const queryInput = document.getElementById('query');
+        // ... (باقي كود JavaScript يبقى كما هو تماماً) ...
         const resultsDiv = document.getElementById('results');
         const statusDiv = document.getElementById('status');
         const modelSelect = document.getElementById('model_type');

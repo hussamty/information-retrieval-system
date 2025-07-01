@@ -15,15 +15,16 @@ import mysql.connector
 from core.text_preprocessor import TextPreprocessor
 from config import MODELS_DIR, EMBEDDING_MODEL_NAME, DB_CONFIG
 
+# --- نماذج الطلب والاستجابة ---
 class SearchRequest(BaseModel):
     dataset_name: str
     query: str
     model_type: str = Field("hybrid", description="'tfidf', 'bm25', 'bert', or 'hybrid'")
     top_k: int = 10
-    k1: float = 1.5
+    k1: float = 1.6
     b: float = 0.75
     enable_ner_reranking: bool = False
-    hybrid_bm25_weight: float = 0.8 # <<<< معامل جديد لوزن BM25 في النموذج الهجين
+    hybrid_bm25_weight: float = 0.8
 
 class SearchResult(BaseModel):
     doc_id: str
@@ -32,13 +33,14 @@ class SearchResult(BaseModel):
 class SearchResponse(BaseModel):
     results: List[SearchResult]
 
+# --- تهيئة التطبيق ---
 app = FastAPI(
-    title="Advanced Search API with Re-ranking and Weighted Hybrid",
-    description="الخدمة المركزية للبحث. تطبق المجموع الموزون للنموذج الهجين."
+    title="Advanced Search API with Suggestion",
+    description="الخدمة المركزية للبحث، مع ميزات إعادة الترتيب بـ NER، الدمج الموزون، واقتراح الاستعلامات."
 )
 
+# --- فئة خدمة البحث الكاملة ---
 class SearchService:
-    # ... (The __init__, _get_db_connection, _fetch_original_texts, and _load_models functions remain the same)
     def __init__(self):
         self.preprocessor = TextPreprocessor()
         self.loaded_models = {}
@@ -71,7 +73,7 @@ class SearchService:
         if dataset_name in self.loaded_models: return self.loaded_models[dataset_name]
         sanitized_name = dataset_name.replace('/', '_')
         model_dir = os.path.join(MODELS_DIR, sanitized_name)
-        if not os.path.exists(model_dir): raise HTTPException(status_code=404, detail=f"Models for dataset '{dataset_name}' not found.")
+        if not os.path.exists(model_dir): raise HTTPException(status_code=404, detail=f"Models not found for {dataset_name}.")
         with open(os.path.join(model_dir, 'inverted_index.json'), 'r') as f: inverted_index = json.load(f)
         models = {
             'inverted_index': inverted_index,
@@ -86,7 +88,6 @@ class SearchService:
         self.loaded_models[dataset_name] = models
         return models
 
-    # ... (_search_tfidf, _search_bm25, _search_bert functions remain the same)
     def _search_tfidf(self, query, models, k):
         query_terms, candidate_docs_set = query.split(), set()
         for term in query_terms:
@@ -114,65 +115,46 @@ class SearchService:
         scores = 1 / (1 + distances[0])
         return [{'doc_id': models['doc_ids'][i], 'score': float(scores[idx])} for idx, i in enumerate(indices[0])]
 
-
-    # --- التعديل الأهم: تطبيق المجموع الموزون ---
     def _search_hybrid_weighted_sum(self, processed_query, original_query, models, k, k1, b, bm25_weight):
-        print(f"Executing Weighted Sum Hybrid Search with BM25 weight: {bm25_weight}")
         bm25_res = self._search_bm25(processed_query, models, k, k1, b)
         bert_res = self._search_bert(original_query, models, k)
-
-        # تحويل النتائج إلى قواميس لسهولة الوصول
         bm25_scores = {res['doc_id']: res['score'] for res in bm25_res}
         bert_scores = {res['doc_id']: res['score'] for res in bert_res}
-        
-        # دالة لتسوية الدرجات (Min-Max Normalization)
         def normalize(scores_dict):
             if not scores_dict: return {}
             scores = list(scores_dict.values())
             min_score, max_score = min(scores), max(scores)
             if max_score == min_score: return {doc_id: 1.0 for doc_id in scores_dict}
             return {doc_id: (score - min_score) / (max_score - min_score) for doc_id, score in scores_dict.items()}
-
         norm_bm25 = normalize(bm25_scores)
         norm_bert = normalize(bert_scores)
-
-        # دمج الدرجات باستخدام المجموع الموزون
         final_scores = {}
         all_ids = set(norm_bm25.keys()).union(set(norm_bert.keys()))
-        
         bert_weight = 1 - bm25_weight
-
         for doc_id in all_ids:
             score1 = norm_bm25.get(doc_id, 0)
             score2 = norm_bert.get(doc_id, 0)
             final_scores[doc_id] = (bm25_weight * score1) + (bert_weight * score2)
-
         sorted_docs = sorted(final_scores.items(), key=lambda item: item[1], reverse=True)
         return [{'doc_id': doc_id, 'score': score} for doc_id, score in sorted_docs[:k]]
-
 
     def search(self, req: SearchRequest):
         models = self._load_models(req.dataset_name)
         processed_query = self.preprocessor.preprocess(req.query)
-        
         initial_retrieval_size = 50 if req.enable_ner_reranking else req.top_k
         
-        # --- المرحلة الأولى: الجلب الأولي ---
-        if req.model_type == 'hybrid':
-            initial_results = self._search_hybrid_weighted_sum(
+        base_model_map = {
+            'tfidf': lambda: self._search_tfidf(processed_query, models, initial_retrieval_size),
+            'bm25': lambda: self._search_bm25(processed_query, models, initial_retrieval_size, req.k1, req.b),
+            'bert': lambda: self._search_bert(req.query, models, initial_retrieval_size),
+            'hybrid': lambda: self._search_hybrid_weighted_sum(
                 processed_query, req.query, models, initial_retrieval_size,
                 req.k1, req.b, req.hybrid_bm25_weight
             )
-        else:
-            base_model_map = {
-                'tfidf': lambda: self._search_tfidf(processed_query, models, initial_retrieval_size),
-                'bm25': lambda: self._search_bm25(processed_query, models, initial_retrieval_size, req.k1, req.b),
-                'bert': lambda: self._search_bert(req.query, models, initial_retrieval_size)
-            }
-            if req.model_type not in base_model_map: raise HTTPException(status_code=400, detail="Invalid model_type")
-            initial_results = base_model_map[req.model_type]()
+        }
+        if req.model_type not in base_model_map: raise HTTPException(status_code=400, detail="Invalid model_type")
+        initial_results = base_model_map[req.model_type]()
 
-        # --- المرحلة الثانية: إعادة الترتيب (إذا تم تفعيلها) ---
         if not initial_results or not req.enable_ner_reranking:
             return initial_results[:req.top_k]
 
@@ -183,8 +165,7 @@ class SearchService:
         candidate_texts = self._fetch_original_texts(candidate_ids, req.dataset_name)
         
         reranked_results = []
-        ner_bonus = 0.5 
-        
+        ner_bonus = 0.5
         for result in initial_results:
             doc_id, original_score = result['doc_id'], result['score']
             doc_text = candidate_texts.get(doc_id, "")
@@ -195,11 +176,28 @@ class SearchService:
             
         reranked_results.sort(key=lambda x: x['score'], reverse=True)
         return reranked_results[:req.top_k]
+    
+    # --- دالة اقتراح الاستعلامات الجديدة ---
+    def get_suggestions(self, dataset_name: str, prefix: str, limit: int = 10):
+        """Finds terms in the inverted index that start with the given prefix."""
+        models = self._load_models(dataset_name)
+        prefix = prefix.lower()
+        suggestions = [term for term in models['inverted_index'].keys() if term.startswith(prefix)]
+        return suggestions[:limit]
 
+# --- تهيئة الخدمة ---
 service = SearchService()
 
+# --- نقاط النهاية (Endpoints) ---
 @app.post("/search/", response_model=SearchResponse)
 async def search_endpoint(request: SearchRequest):
     results = service.search(request)
     return SearchResponse(results=results)
+
+@app.get("/suggest/", response_model=List[str])
+async def suggest_endpoint(dataset_name: str, prefix: str):
+    if not prefix or len(prefix) < 2:
+        return []
+    suggestions = service.get_suggestions(dataset_name, prefix)
+    return suggestions
 

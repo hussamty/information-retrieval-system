@@ -7,6 +7,7 @@ import os
 import joblib
 import json
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.cluster import KMeans # <<<< استيراد مكتبة K-Means
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 import faiss
@@ -25,6 +26,12 @@ def space_tokenizer(text):
 
 class RepresentationRequest(BaseModel):
     dataset_name: str
+
+# <<<< نموذج طلب جديد لخدمة التجميع >>>>
+class ClusterRequest(BaseModel):
+    dataset_name: str
+    num_clusters: int = 20 # يمكن تحديد عدد العناقيد المقترح
+
 
 app = FastAPI(
     title="Memory-Safe Representation API",
@@ -141,4 +148,38 @@ async def build_representations_endpoint(request: RepresentationRequest, backgro
     background_tasks.add_task(build_representations_robust, dataset_name)
     
     return {"message": f"Memory-safe representation building for '{dataset_name}' has started."}
+
+# --- Endpoint جديد ومستقل لخدمة التجميع (Clustering) ---
+def perform_clustering(dataset_name: str, num_clusters: int):
+    print(f"Starting clustering for dataset: {dataset_name} with {num_clusters} clusters.", flush=True)
+    try:
+        sanitized_name = dataset_name.replace('/', '_')
+        model_dir = os.path.join(MODELS_DIR, sanitized_name)
+
+        # تحميل مصفوفة TF-IDF الموجودة مسبقاً
+        tfidf_matrix_path = os.path.join(model_dir, 'tfidf_matrix.joblib')
+        if not os.path.exists(tfidf_matrix_path):
+            print(f"Error: tfidf_matrix.joblib not found for {dataset_name}. Please build representations first.", flush=True)
+            return
+
+        print("Loading TF-IDF matrix...", flush=True)
+        tfidf_matrix = joblib.load(tfidf_matrix_path)
+
+        # تطبيق خوارزمية K-Means
+        print(f"Running K-Means with {num_clusters} clusters...", flush=True)
+        kmeans = KMeans(n_clusters=num_clusters, random_state=42, n_init=10)
+        clusters = kmeans.fit_predict(tfidf_matrix)
+
+        # حفظ نتائج التجميع
+        clusters_path = os.path.join(model_dir, 'clusters.joblib')
+        joblib.dump(clusters, clusters_path)
+        print(f"Clustering complete. Results saved to {clusters_path}", flush=True)
+
+    except Exception as e:
+        print(f"An error occurred during clustering: {e}", flush=True)
+
+@app.post("/build-clusters/")
+async def build_clusters_endpoint(request: ClusterRequest, background_tasks: BackgroundTasks):
+    background_tasks.add_task(perform_clustering, dataset_name=request.dataset_name, num_clusters=request.num_clusters)
+    return {"message": f"Clustering process for '{request.dataset_name}' has started in the background."}
 

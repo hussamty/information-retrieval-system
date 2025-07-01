@@ -25,13 +25,13 @@
         </div>
 
         <div class="bg-white p-6 rounded-2xl shadow-lg max-w-3xl mx-auto">
-            <!-- Row 1 & 2 -->
+            <!-- Row 1: Dataset and Model -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
                     <label for="dataset" class="block text-gray-700 font-bold mb-2">اختر مجموعة البيانات:</label>
                     <select id="dataset" class="shadow-sm appearance-none border rounded-lg w-full py-2 px-3 text-gray-700">
-                        <option value="antique">Antique (نصوص عامة)</option>
-                        <option value="beir/quora">Quora (أسئلة)</option>
+                        <option value="antique">Antique (أسئلة وأجوبة عامة)</option>
+                        <option value="beir/quora">Quora (تكرار الأسئلة)</option>
                     </select>
                 </div>
                 <div>
@@ -46,38 +46,41 @@
             </div>
             
             <!-- Parameters Section -->
-            <div id="bm25-params" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 hidden">
-                 <div>
-                    <label for="bm25_k1" class="block text-gray-700 font-bold mb-2">BM25 k1:</label>
-                    <input type="number" id="bm25_k1" value="1.6" step="0.1" class="shadow-sm border rounded-lg w-full py-2 px-3">
+            <div id="params-section" class="space-y-4 mb-4">
+                <div id="bm25-params" class="grid grid-cols-1 md:grid-cols-2 gap-4 hidden">
+                    <div>
+                        <label for="bm25_k1" class="block text-gray-700 font-bold mb-2">BM25 k1:</label>
+                        <input type="number" id="bm25_k1" value="1.6" step="0.1" class="shadow-sm border rounded-lg w-full py-2 px-3">
+                    </div>
+                    <div>
+                        <label for="bm25_b" class="block text-gray-700 font-bold mb-2">BM25 b:</label>
+                        <input type="number" id="bm25_b" value="0.75" step="0.05" class="shadow-sm border rounded-lg w-full py-2 px-3">
+                    </div>
                 </div>
-                 <div>
-                    <label for="bm25_b" class="block text-gray-700 font-bold mb-2">BM25 b:</label>
-                    <input type="number" id="bm25_b" value="0.75" step="0.05" class="shadow-sm border rounded-lg w-full py-2 px-3">
+                <div id="hybrid-params" class="hidden">
+                    <label for="hybrid_weight" class="block text-gray-700 font-bold mb-2">وزن BM25 في النموذج الهجين: <span id="weight-value">0.8</span></label>
+                    <input type="range" id="hybrid_weight" min="0" max="1" value="0.8" step="0.05" class="w-full">
                 </div>
             </div>
-            <!-- Hybrid Weight Section -->
-            <div id="hybrid-params" class="mb-4 hidden">
-                <label for="hybrid_weight" class="block text-gray-700 font-bold mb-2">وزن BM25 في النموذج الهجين: <span id="weight-value">0.8</span></label>
-                <input type="range" id="hybrid_weight" min="0" max="1" value="0.8" step="0.05" class="w-full">
-            </div>
 
-
-            <!-- Query Input -->
+            <!-- Query Input with Suggestions -->
             <div class="mb-4">
                 <label for="query" class="block text-gray-700 font-bold mb-2">أدخل استعلام البحث:</label>
                 <div class="relative">
-                    <input type="text" id="query" class="shadow-sm border rounded-lg w-full py-3 px-4" placeholder="اكتب هنا...">
+                    <input type="text" id="query" class="shadow-sm border rounded-lg w-full py-3 px-4 text-gray-700" placeholder="اكتب هنا..." autocomplete="off">
+                    <div id="suggestions-box" class="absolute z-10 w-full bg-white border border-gray-300 rounded-b-lg mt-1 hidden shadow-lg"></div>
                 </div>
             </div>
             
             <!-- Search Button and NER Toggle -->
             <div class="flex items-center justify-between">
                 <div class="flex items-center">
-                    <input id="ner-rerank-toggle" type="checkbox" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded">
-                    <label for="ner-rerank-toggle" class="ms-2 text-sm font-medium">تفعيل تحسين NER</label>
+                    <input id="ner-rerank-toggle" type="checkbox" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500">
+                    <label for="ner-rerank-toggle" class="ms-2 text-sm font-medium text-gray-900">تفعيل تحسين NER</label>
                 </div>
-                <button id="search-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-md">بحث</button>
+                <button id="search-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-md focus:outline-none focus:shadow-outline transition-transform transform hover:scale-105">
+                    بحث
+                </button>
             </div>
         </div>
 
@@ -86,47 +89,105 @@
     </div>
 
     <script>
+        // --- Setup Elements ---
+        const searchBtn = document.getElementById('search-btn');
+        const queryInput = document.getElementById('query');
+        const resultsDiv = document.getElementById('results');
+        const statusDiv = document.getElementById('status');
         const modelSelect = document.getElementById('model_type');
         const bm25ParamsDiv = document.getElementById('bm25-params');
         const hybridParamsDiv = document.getElementById('hybrid-params');
         const hybridWeightSlider = document.getElementById('hybrid_weight');
         const weightValueSpan = document.getElementById('weight-value');
+        const nerToggle = document.getElementById('ner-rerank-toggle');
+        const suggestionsBox = document.getElementById('suggestions-box');
+        let suggestionTimeout;
 
+        // --- Event Listeners ---
+        modelSelect.addEventListener('change', toggleParams);
+        hybridWeightSlider.addEventListener('input', () => { weightValueSpan.textContent = hybridWeightSlider.value; });
+        searchBtn.addEventListener('click', performSearch);
+        queryInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') performSearch(); });
+        queryInput.addEventListener('input', handleSuggestionInput);
+        document.addEventListener('click', (e) => {
+            if (!queryInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
+                suggestionsBox.classList.add('hidden');
+            }
+        });
+        
+        // --- Initial Setup ---
+        toggleParams();
+        weightValueSpan.textContent = hybridWeightSlider.value;
+
+        // --- Functions ---
         function toggleParams() {
             const selectedModel = modelSelect.value;
             bm25ParamsDiv.classList.toggle('hidden', !(selectedModel === 'bm25' || selectedModel === 'hybrid'));
             hybridParamsDiv.classList.toggle('hidden', selectedModel !== 'hybrid');
         }
 
-        modelSelect.addEventListener('change', toggleParams);
-        hybridWeightSlider.addEventListener('input', () => {
-            weightValueSpan.textContent = hybridWeightSlider.value;
-        });
-        
-        // Initial setup
-        toggleParams();
-        weightValueSpan.textContent = hybridWeightSlider.value;
+        async function handleSuggestionInput() {
+            clearTimeout(suggestionTimeout);
+            const prefix = queryInput.value;
 
-        document.getElementById('search-btn').addEventListener('click', async () => {
+            if (prefix.length < 2) {
+                suggestionsBox.classList.add('hidden');
+                return;
+            }
+
+            suggestionTimeout = setTimeout(async () => {
+                const dataset = document.getElementById('dataset').value;
+                try {
+                    const response = await fetch(`/suggest/?dataset_name=${encodeURIComponent(dataset)}&prefix=${encodeURIComponent(prefix)}`);
+                    const suggestions = await response.json();
+                    displaySuggestions(suggestions);
+                } catch (error) {
+                    console.error("Suggestion fetch failed:", error);
+                }
+            }, 250);
+        }
+
+        function displaySuggestions(suggestions) {
+            if (suggestions.length === 0) {
+                suggestionsBox.classList.add('hidden');
+                return;
+            }
+            suggestionsBox.innerHTML = '';
+            suggestions.forEach(suggestion => {
+                const div = document.createElement('div');
+                div.textContent = suggestion;
+                div.className = 'p-2 hover:bg-gray-100 cursor-pointer';
+                div.onclick = () => {
+                    queryInput.value = suggestion;
+                    suggestionsBox.classList.add('hidden');
+                    queryInput.focus();
+                };
+                suggestionsBox.appendChild(div);
+            });
+            suggestionsBox.classList.remove('hidden');
+        }
+
+        async function performSearch() {
             const payload = {
-                query: document.getElementById('query').value,
+                query: queryInput.value,
                 dataset_name: document.getElementById('dataset').value,
                 model_type: modelSelect.value,
                 k1: parseFloat(document.getElementById('bm25_k1').value),
                 b: parseFloat(document.getElementById('bm25_b').value),
-                enable_ner_reranking: document.getElementById('ner-rerank-toggle').checked,
+                enable_ner_reranking: nerToggle.checked,
                 hybrid_bm25_weight: parseFloat(hybridWeightSlider.value),
                 top_k: 10
             };
-            // ... (The rest of the script remains the same)
-            const statusDiv = document.getElementById('status');
-            const resultsDiv = document.getElementById('results');
+
             if (!payload.query.trim()) {
                 statusDiv.innerHTML = `<p class="text-red-500 font-semibold">الرجاء إدخال استعلام للبحث.</p>`;
                 return;
             }
+
             statusDiv.innerHTML = '<div class="loader"></div><p class="text-blue-600 font-semibold">جاري البحث...</p>';
             resultsDiv.innerHTML = '';
+            searchBtn.disabled = true;
+
             try {
                 const response = await fetch('/search', {
                     method: 'POST',
@@ -135,30 +196,36 @@
                 });
                 const results = await response.json();
                 if (!response.ok) throw new Error(results.error || 'حدث خطأ غير معروف.');
+                
                 statusDiv.innerHTML = '';
-                // ... (displayResults function)
-                if (!results || results.length === 0) {
-                    resultsDiv.innerHTML = '<p class="text-center text-gray-500">لم يتم العثور على نتائج.</p>';
-                } else {
-                    results.forEach(result => {
-                        const resultEl = document.createElement('div');
-                        resultEl.className = 'bg-white p-5 rounded-xl shadow-md';
-                        const p = document.createElement('p');
-                        p.className = 'text-gray-700';
-                        p.textContent = result.original_text;
-                        resultEl.innerHTML = `
-                            <div class="flex justify-between items-center mb-2">
-                                <h3 class="text-lg font-bold text-gray-900">معرف المستند: ${result.doc_id}</h3>
-                                <p class="text-sm text-white bg-blue-500 font-bold py-1 px-3 rounded-full">${result.score.toFixed(4)}</p>
-                            </div>`;
-                        resultEl.appendChild(p);
-                        resultsDiv.appendChild(resultEl);
-                    });
-                }
+                displayResults(results);
             } catch (error) {
                 statusDiv.innerHTML = `<p class="text-red-500 font-semibold">فشل البحث: ${error.message}</p>`;
+            } finally {
+                searchBtn.disabled = false;
             }
-        });
+        }
+
+        function displayResults(results) {
+            if (!results || results.length === 0) {
+                resultsDiv.innerHTML = '<p class="text-center text-gray-500">لم يتم العثور على نتائج.</p>';
+                return;
+            }
+            results.forEach(result => {
+                const resultEl = document.createElement('div');
+                resultEl.className = 'bg-white p-5 rounded-xl shadow-md';
+                const p = document.createElement('p');
+                p.className = 'text-gray-700';
+                p.textContent = result.original_text;
+                resultEl.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-lg font-bold text-gray-900">معرف المستند: ${result.doc_id}</h3>
+                        <p class="text-sm text-white bg-blue-500 font-bold py-1 px-3 rounded-full">${result.score.toFixed(4)}</p>
+                    </div>`;
+                resultEl.appendChild(p);
+                resultsDiv.appendChild(resultEl);
+            });
+        }
     </script>
 </body>
 </html>

@@ -7,22 +7,21 @@ import os
 import mysql.connector
 from mysql.connector import errorcode # For specific error codes from the connector
 
-# --- Solution for the "ModuleNotFoundError: No module named 'config'" problem ---
-# This code adds the main project directory to Python's path.
+
 # This allows the script, which is in a subdirectory (utils), to find and import 'config.py' from the root directory.
 # os.path.abspath(__file__) -> gets the full path of the current script.
 # os.path.dirname(...) -> gets the directory containing the file.
 # Using dirname twice goes up one level from 'utils' to the project root.
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Now that the path is set up, we can successfully import the database configuration.
+# import the database configuration.
 from config import DB_CONFIG
 
 # This function handles the creation of the database and its tables.
 def create_database_and_tables():
     # Get the database name from the imported configuration.
     db_name = DB_CONFIG['database']
-    # Use a try...except...finally block to handle potential connection errors gracefully.
+    # Use a try...except...finally block to handle connection errors.
     try:
         # Create a temporary copy of the config dictionary.
         temp_config = DB_CONFIG.copy()
@@ -34,13 +33,12 @@ def create_database_and_tables():
         cursor = cnx.cursor()
         
         # Execute the SQL command to create the database if it doesn't already exist.
-        # It sets the default character set to utf8mb4 to support a wide range of characters, including emojis.
         cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name} DEFAULT CHARACTER SET utf8mb4")
         print(f"Database '{db_name}' is ready.")
         # Switch the connection to use the newly created (or already existing) database.
         cnx.database = db_name
 
-        # Define the SQL statement for creating the 'documents' table.
+        # SQL commands creating the 'documents' table.
         table_desc = (
             "CREATE TABLE IF NOT EXISTS `documents` ("
             "  `doc_id` varchar(255) NOT NULL,"  # The unique ID for the document.
@@ -71,8 +69,7 @@ def create_database_and_tables():
         if 'cnx' in locals() and cnx.is_connected():
             cnx.close()
 
-# This standard Python construct checks if the script is being run directly.
-# If it is, it calls the main function to set up the database.
+
 # This prevents the code from running if the script is imported as a module into another file.
 if __name__ == "__main__":
     create_database_and_tables()

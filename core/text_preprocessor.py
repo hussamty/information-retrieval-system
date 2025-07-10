@@ -9,8 +9,6 @@ from nltk.stem import WordNetLemmatizer # For reducing words to their base or di
 from nltk import pos_tag, ne_chunk # For Part-of-Speech tagging and Named Entity Chunking
 from nltk.tree import Tree # For working with the tree structure returned by ne_chunk
 
-# Note: The comment below implies that the necessary NLTK data (like 'punkt', 'stopwords', 'wordnet', 'averaged_perceptron_tagger', 'maxent_ne_chunker', 'words')
-# has been downloaded in a previous step or setup script.
 
 class TextPreprocessor:
     """

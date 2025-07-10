@@ -8,8 +8,8 @@ import mysql.connector # To connect to and interact with a MySQL database
 from tqdm import tqdm # To show a progress bar for long loops
 
 # Import custom modules
-from core.text_preprocessor import TextPreprocessor # Our custom class for cleaning and preparing text
-from config import DB_CONFIG # Database connection settings from our configuration file
+from core.text_preprocessor import TextPreprocessor 
+from config import DB_CONFIG 
 
 # Define the structure of the request body for the /load-dataset/ endpoint
 class DatasetRequest(BaseModel):
@@ -21,7 +21,7 @@ app = FastAPI(
     # Set the title of the API documentation
     title="Data Loader and Preprocessing API",
     # Set the description of the API documentation (in Arabic)
-    description="خدمة لتحميل مجموعات البيانات من ir_datasets، معالجتها، وتخزينها في قاعدة البيانات."
+    description="A service to load datasets from ir_datasets, processing, Storing in Database."
 )
 
 # Define the main function that will be run in the background

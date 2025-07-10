@@ -2,22 +2,22 @@
 
 echo "Starting all services in the background..."
 
-# تفعيل البيئة الافتراضية
+# Activiting Virtual Environment
 VENV_PATH="venv"
 if [ -d "$VENV_PATH" ] && [ -z "$VIRTUAL_ENV" ]; then
     echo "Activating virtual environment: $VENV_PATH"
     source "$VENV_PATH/bin/activate"
 fi
 
-# إيقاف أي عمليات قديمة
+# Kill process that use these TCP ports without showing any standard output or errors.
 echo "Attempting to stop any services on ports 8001, 8002, 8003..."
 fuser -k 8001/tcp > /dev/null 2>&1
 fuser -k 8002/tcp > /dev/null 2>&1
 fuser -k 8003/tcp > /dev/null 2>&1
 sleep 2
 
-# تشغيل الخدمات
-# الآن ستعمل بشكل صحيح بفضل ملفات __init__.py
+# Run Services
+
 echo "Starting Data Loader API (port 8001)... Log: data_loader.log"
 python -m uvicorn api.data_loader_api:app --host 0.0.0.0 --port 8001 > data_loader.log 2>&1 &
 DATA_LOADER_PID=$!

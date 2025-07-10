@@ -1,7 +1,7 @@
 # api/representation_api.py
 
 # Import necessary libraries
-from fastapi import FastAPI, BackgroundTasks # For creating the API and running background tasks
+from fastapi import FastAPI, BackgroundTasks, HTTPException # For creating the API and running background tasks
 from pydantic import BaseModel # For defining the structure of API requests
 import mysql.connector # To connect to the MySQL database
 import os # For interacting with the operating system, like creating directories
@@ -15,6 +15,7 @@ import faiss # A library from Facebook AI for efficient similarity search
 import numpy as np # A fundamental package for numerical computation
 import pandas as pd # For data manipulation and analysis, especially for reading data from SQL
 from tqdm import tqdm # To display progress bars
+from typing import Optional
 
 # Import custom configuration and constants
 from config import DB_CONFIG, MODELS_DIR, EMBEDDING_MODEL_NAME
@@ -35,14 +36,13 @@ class RepresentationRequest(BaseModel):
 # Define the structure for a request to build clusters
 class ClusterRequest(BaseModel):
     dataset_name: str
-    # Set a default number of clusters, but allow it to be overridden in the request
-    num_clusters: int = 20 
-
+    num_clusters: int = 20
+    use_bert: Optional[bool] = False  
 
 # Create a new FastAPI application instance
 app = FastAPI(
     title="Memory-Safe Representation API",
-    description="خدمة لبناء وحفظ نماذج التمثيل، مصممة للعمل بكفاءة مع البيانات الضخمة."
+    description="A service for building, saving representations, designed to handle large datasets."
 )
 
 # The main function to build all the different data representations
@@ -204,45 +204,65 @@ async def build_representations_endpoint(request: RepresentationRequest, backgro
     # Return an immediate confirmation message
     return {"message": f"Memory-safe representation building for '{dataset_name}' has started."}
 
+
+def load_tfidf_matrix(model_dir: str):
+    path = os.path.join(model_dir, 'tfidf_matrix.joblib')
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"TF-IDF matrix not found at {path}. Please build representations first.")
+    print(f"[LOAD] TF-IDF matrix loaded from {path}", flush=True)
+    return joblib.load(path)
+
+def load_bert_embeddings(model_dir: str):
+    path = os.path.join(model_dir, 'bert_embeddings.npy')
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"BERT embeddings not found at {path}. Please build representations first.")
+    print(f"[LOAD] BERT embeddings loaded from {path}", flush=True)
+    return np.load(path)
+
+
 # --- A separate function and endpoint for clustering ---
-def perform_clustering(dataset_name: str, num_clusters: int):
-    print(f"Starting clustering for dataset: {dataset_name} with {num_clusters} clusters.", flush=True)
+def perform_clustering(dataset_name: str, num_clusters: int, use_bert: bool = False):
+    print(f"[CLUSTERING] Starting clustering for dataset: {dataset_name} with {num_clusters} clusters. Using BERT: {use_bert}", flush=True)
     try:
-        # Sanitize the dataset name and find the model directory
+        if num_clusters <= 0:
+            raise ValueError("Number of clusters must be a positive integer.")
+
         sanitized_name = dataset_name.replace('/', '_')
         model_dir = os.path.join(MODELS_DIR, sanitized_name)
 
-        # Check if the required TF-IDF matrix has been created first
-        tfidf_matrix_path = os.path.join(model_dir, 'tfidf_matrix.joblib')
-        if not os.path.exists(tfidf_matrix_path):
-            print(f"Error: tfidf_matrix.joblib not found for {dataset_name}. Please build representations first.", flush=True)
-            return
+        # Load data matrix
+        if use_bert:
+            data_matrix = load_bert_embeddings(model_dir)
+        else:
+            data_matrix = load_tfidf_matrix(model_dir)
 
-        # Load the pre-built TF-IDF matrix
-        print("Loading TF-IDF matrix...", flush=True)
-        tfidf_matrix = joblib.load(tfidf_matrix_path)
+        # Run KMeans
+        print(f"[CLUSTERING] Running K-Means...", flush=True)
+        kmeans = KMeans(n_clusters=num_clusters, random_state=42, n_init='auto')
+        clusters = kmeans.fit_predict(data_matrix)
 
-        # Apply the K-Means algorithm
-        print(f"Running K-Means with {num_clusters} clusters...", flush=True)
-        # Initialize KMeans with the desired number of clusters and a fixed random state for reproducibility
-        kmeans = KMeans(n_clusters=num_clusters, random_state=42, n_init=10)
-        # Fit the model and predict the cluster for each document
-        clusters = kmeans.fit_predict(tfidf_matrix)
-
-        # Save the clustering results (an array of cluster labels)
+        # Save clusters
         clusters_path = os.path.join(model_dir, 'clusters.joblib')
         joblib.dump(clusters, clusters_path)
-        print(f"Clustering complete. Results saved to {clusters_path}", flush=True)
+        print(f"[CLUSTERING] Clustering complete. Results saved to {clusters_path}", flush=True)
 
     except Exception as e:
-        # Catch and print any errors
-        print(f"An error occurred during clustering: {e}", flush=True)
+        print(f"[ERROR] Clustering failed for dataset '{dataset_name}': {e}", flush=True)
+
+
 
 # Define the API endpoint for building clusters
 @app.post("/build-clusters/")
 async def build_clusters_endpoint(request: ClusterRequest, background_tasks: BackgroundTasks):
-    # Add the clustering function to run in the background
-    background_tasks.add_task(perform_clustering, dataset_name=request.dataset_name, num_clusters=request.num_clusters)
-    # Return an immediate confirmation message
-    return {"message": f"Clustering process for '{request.dataset_name}' has started in the background."}
+    if request.num_clusters <= 0:
+        raise HTTPException(status_code=400, detail="Number of clusters must be a positive integer.")
+
+    background_tasks.add_task(
+        perform_clustering,
+        dataset_name=request.dataset_name,
+        num_clusters=request.num_clusters,
+        use_bert=request.use_bert
+    )
+
+    return {"message": f"Clustering for '{request.dataset_name}' started in background using {'BERT' if request.use_bert else 'TF-IDF'}."}
 

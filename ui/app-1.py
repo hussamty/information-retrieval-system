@@ -115,17 +115,17 @@ def search_route():
 # --- A separate endpoint for handling query suggestions ---
 @app.route('/suggest/', methods=['GET'])
 def suggest_route():
-    # Get the dataset and query from the query parameters in the URL
+    # Get the dataset and prefix from the query parameters in the URL
     dataset_name = request.args.get('dataset_name')
-    query = request.args.get('query')
+    prefix = request.args.get('prefix')
 
     # Ensure both parameters are provided
-    if not dataset_name or query is None: # Check for query's presence, even if it's an empty string
-        return jsonify({"error": "dataset_name and query are required."}), 400
+    if not dataset_name or not prefix:
+        return jsonify({"error": "dataset_name and prefix are required."}), 400
 
     try:
         # Forward the request to the '/suggest/' endpoint of the actual search API
-        response = requests.get(f"{SEARCH_API_URL}/suggest/", params={"dataset_name": dataset_name, "query": query})
+        response = requests.get(f"{SEARCH_API_URL}/suggest/", params={"dataset_name": dataset_name, "prefix": prefix})
         response.raise_for_status() # Check for errors
         # Return the JSON response from the search API directly to the frontend
         return jsonify(response.json())

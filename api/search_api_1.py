@@ -253,22 +253,14 @@ class SearchService:
     
     # --- Method for query suggestions ---
     def get_suggestions(self, dataset_name: str, prefix: str, limit: int = 10):
-        """
-        Finds terms in the inverted index that start with the given prefix,
-        prioritizing more frequent terms.
-        """
+        """Finds terms in the inverted index that start with the given prefix."""
         # Load the models to get access to the inverted index
         models = self._load_models(dataset_name)
         prefix = prefix.lower()
-        
-        # Find all terms that start with the prefix
-        matching_terms = [term for term in models['inverted_index'].keys() if term.startswith(prefix)]
-        
-        # Sort the matching terms by their document frequency (length of the posting list) in descending order
-        sorted_suggestions = sorted(matching_terms, key=lambda term: len(models['inverted_index'][term]), reverse=True)
-        
-        # Return the top 'limit' suggestions
-        return sorted_suggestions[:limit]
+        # Create a list of all terms (keys in the inverted index) that start with the user's prefix
+        suggestions = [term for term in models['inverted_index'].keys() if term.startswith(prefix)]
+        # Return the first 'limit' suggestions
+        return suggestions[:limit]
 
 # --- Create a single instance of the service to be used by the API endpoints ---
 service = SearchService()
@@ -285,35 +277,11 @@ async def search_endpoint(request: SearchRequest):
 
 # The query suggestion endpoint
 @app.get("/suggest/", response_model=List[str])
-async def suggest_endpoint(dataset_name: str, query: str, limit: int = 10):
-    """
-    Provides real-time query suggestions based on the last word being typed.
-    
-    - Handles multi-word queries.
-    - Suggestions are ranked by term frequency in the corpus.
-    - Returns full query suggestions.
-    """
-    # If query is empty, there's nothing to suggest.
-    # If it ends with a space, the user has completed a word, so we don't suggest.
-    if not query or query.endswith(' '):
+async def suggest_endpoint(dataset_name: str, prefix: str):
+    # Don't return suggestions for very short prefixes
+    if not prefix or len(prefix) < 2:
         return []
-
-    # Split the query to find the last word (the prefix) and the preceding text (the base).
-    query_parts = query.rsplit(' ', 1)
-    if len(query_parts) > 1:
-        base_query, prefix = query_parts[0] + ' ', query_parts[1]
-    else:
-        base_query, prefix = '', query_parts[0]
-
-    # Don't bother searching if the prefix part is empty (e.g., multiple spaces)
-    if not prefix:
-        return []
-
-    # Get suggestions for the prefix, which will be sorted by frequency.
-    term_suggestions = service.get_suggestions(dataset_name, prefix, limit)
-    
-    # Combine the base query with each suggestion to form full, ready-to-use query strings.
-    full_suggestions = [base_query + term for term in term_suggestions]
-    
-    return full_suggestions
+    # Call the suggestion method of our service instance
+    suggestions = service.get_suggestions(dataset_name, prefix)
+    return suggestions
 

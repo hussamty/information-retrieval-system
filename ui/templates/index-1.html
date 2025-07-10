@@ -149,10 +149,10 @@
         // Handles fetching suggestions as the user types
         async function handleSuggestionInput() {
             clearTimeout(suggestionTimeout); // Clear any previous pending suggestion request
-            const query = queryInput.value;
+            const prefix = queryInput.value;
 
-            // Don't fetch suggestions if the input is empty
-            if (query.length < 1) {
+            // Don't fetch suggestions for very short prefixes
+            if (prefix.length < 2) {
                 suggestionsBox.classList.add('hidden');
                 return;
             }
@@ -161,7 +161,7 @@
             suggestionTimeout = setTimeout(async () => {
                 const dataset = document.getElementById('dataset').value;
                 try {
-                    const response = await fetch(`/suggest/?dataset_name=${encodeURIComponent(dataset)}&query=${encodeURIComponent(query)}`);
+                    const response = await fetch(`/suggest/?dataset_name=${encodeURIComponent(dataset)}&prefix=${encodeURIComponent(prefix)}`);
                     const suggestions = await response.json();
                     displaySuggestions(suggestions);
                 } catch (error) {

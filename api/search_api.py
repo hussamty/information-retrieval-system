@@ -16,6 +16,8 @@ import mysql.connector # To connect to the database to fetch document text
 # Import custom modules
 from core.text_preprocessor import TextPreprocessor # Our text processing class
 from config import MODELS_DIR, EMBEDDING_MODEL_NAME, DB_CONFIG # Import constants and configuration
+from spellchecker import SpellChecker # For spelling correction
+
 
 # --- Define the structure for API requests and responses ---
 
@@ -34,11 +36,14 @@ class SearchRequest(BaseModel):
     enable_ner_reranking: bool = False
     # The weight to give the BM25 score in the hybrid model
     hybrid_bm25_weight: float = 0.8
+    # A flag to enable or disable cluster-based re-ranking
+    enable_cluster_reranking: bool = False
 
 # The structure for a single search result
 class SearchResult(BaseModel):
     doc_id: str
     score: float
+    cluster_id: int = -1 # -1 indicates no cluster information
 
 # The structure for the final search response, containing a list of results
 class SearchResponse(BaseModel):
@@ -60,6 +65,22 @@ class SearchService:
         self.loaded_models = {}
         # A cache to store fetched document texts to avoid repeated database calls
         self.doc_text_cache = {}
+        # Initialize the spell checker for English
+        self.spell_checker = SpellChecker(language='en')
+
+    # A helper method to log a query into the database
+    def _log_query(self, dataset_name: str, query_text: str, successful: bool):
+        try:
+            cnx = self._get_db_connection()
+            cursor = cnx.cursor()
+            sql = "INSERT INTO query_logs (dataset_name, query_text, successful) VALUES (%s, %s, %s)"
+            cursor.execute(sql, (dataset_name, query_text, successful))
+            cnx.commit()
+            cursor.close()
+            cnx.close()
+        except mysql.connector.Error as err:
+            # It's okay to fail silently here, as logging is not critical
+            print(f"Failed to log query: {err}", flush=True)
 
     # A helper method to get a new database connection
     def _get_db_connection(self):
@@ -114,6 +135,15 @@ class SearchService:
         }
         # Create a mapping from document ID to its index for quick lookups
         models['doc_id_to_idx'] = {doc_id: i for i, doc_id in enumerate(models['doc_ids'])}
+        # Load cluster information if it exists
+        cluster_path = os.path.join(model_dir, 'clusters.joblib')
+        if os.path.exists(cluster_path):
+            models['clusters'] = joblib.load(cluster_path)
+            models['doc_id_to_cluster'] = {doc_id: cluster for doc_id, cluster in zip(models['doc_ids'], models['clusters'])}
+        else:
+            models['clusters'] = None
+            models['doc_id_to_cluster'] = {}
+
         # Store the loaded models in the cache
         self.loaded_models[dataset_name] = models
         return models
@@ -218,38 +248,89 @@ class SearchService:
         # Get the initial search results
         initial_results = base_model_map[req.model_type]()
 
-        # If we have no results, or if re-ranking is disabled, return the initial results
-        if not initial_results or not req.enable_ner_reranking:
-            return initial_results[:req.top_k]
+        # Log the query
+        self._log_query(req.dataset_name, req.query, successful=bool(initial_results))
+
+        # Add cluster_id to the initial results
+        for res in initial_results:
+            res['cluster_id'] = int(models.get('doc_id_to_cluster', {}).get(res['doc_id'], -1))
+
+        # --- Cluster Re-ranking Logic ---
+        if req.enable_cluster_reranking and models.get('clusters') is not None:
+            print("[SEARCH] Applying cluster-based re-ranking.", flush=True)
+            # Determine if the model used for search is BERT-based
+            use_bert_for_clustering = req.model_type in ['bert', 'hybrid']
+            results_to_process = self._rerank_by_cluster(req.query, initial_results, models, use_bert_for_clustering)
+        else:
+            results_to_process = initial_results
+
+        # If we have no results, or if NER re-ranking is disabled, return the current results
+        if not results_to_process or not req.enable_ner_reranking:
+            return results_to_process[:req.top_k]
 
         # --- NER Re-ranking Logic ---
-        # Extract named entities from the query
+        print("[SEARCH] Applying NER-based re-ranking.", flush=True)
         query_entities = self.preprocessor.extract_entities(req.query)
-        # If the query has no entities, no re-ranking is possible
-        if not query_entities: return initial_results[:req.top_k]
-        
-        # Get the IDs and fetch the original text for the candidate documents
-        candidate_ids = [res['doc_id'] for res in initial_results]
+        if not query_entities:
+            return results_to_process[:req.top_k]
+
+        candidate_ids = [res['doc_id'] for res in results_to_process]
         candidate_texts = self._fetch_original_texts(candidate_ids, req.dataset_name)
         
-        # Re-rank the results
         reranked_results = []
-        ner_bonus = 0.5 # The bonus to add to the score for each matching entity
-        for result in initial_results:
-            doc_id, original_score = result['doc_id'], result['score']
+        ner_bonus = 0.5
+        for result in results_to_process:
+            doc_id, original_score, cluster_id = result['doc_id'], result['score'], result.get('cluster_id', -1)
             doc_text = candidate_texts.get(doc_id, "")
-            # Extract entities from the document text
             doc_entities = self.preprocessor.extract_entities(doc_text)
-            # Count how many of the query's entities are also in the document
             matching_entities_count = len(query_entities.intersection(doc_entities))
-            # Calculate the new score by adding the bonus
             final_score = original_score + (matching_entities_count * ner_bonus)
-            reranked_results.append({'doc_id': doc_id, 'score': final_score})
+            reranked_results.append({'doc_id': doc_id, 'score': final_score, 'cluster_id': cluster_id})
             
-        # Sort the results by the new, re-ranked score
         reranked_results.sort(key=lambda x: x['score'], reverse=True)
-        # Return the top k re-ranked results
         return reranked_results[:req.top_k]
+
+    # --- Method for cluster-based re-ranking ---
+    def _rerank_by_cluster(self, query, results, models, use_bert):
+        if not models.get('clusters') is not None:
+            return results # No cluster information available
+
+        # Determine the query's cluster
+        if use_bert:
+            query_embedding = models['bert_model'].encode([query]).astype('float32')
+            # This is a simplification; in a real system, you'd use the kmeans model to predict
+            # For now, we find the closest document in the original results and use its cluster
+            if not results:
+                return results
+            closest_doc_id = results[0]['doc_id']
+            query_cluster = models['doc_id_to_cluster'].get(closest_doc_id, -1)
+        else:
+            # For TF-IDF, we can transform the query and predict the cluster
+            # This requires the kmeans model to be loaded, which is not done here for simplicity.
+            # As a fallback, we use the cluster of the top result.
+            if not results:
+                return results
+            closest_doc_id = results[0]['doc_id']
+            query_cluster = models['doc_id_to_cluster'].get(closest_doc_id, -1)
+
+        if query_cluster == -1:
+            return results # Could not determine query cluster
+
+        reranked_results = []
+        cluster_bonus = 1.0 # Bonus for being in the same cluster
+        for result in results:
+            doc_id = result['doc_id']
+            original_score = result['score']
+            doc_cluster = models['doc_id_to_cluster'].get(doc_id, -1)
+            
+            new_score = original_score
+            if doc_cluster == query_cluster:
+                new_score += cluster_bonus
+            
+            reranked_results.append({'doc_id': doc_id, 'score': new_score, 'cluster_id': int(doc_cluster)})
+
+        reranked_results.sort(key=lambda x: x['score'], reverse=True)
+        return reranked_results
     
     # --- Method for query suggestions ---
     def get_suggestions(self, dataset_name: str, prefix: str, limit: int = 10):
@@ -269,6 +350,33 @@ class SearchService:
         
         # Return the top 'limit' suggestions
         return sorted_suggestions[:limit]
+
+    # --- Method for spelling correction and alternative query suggestions ---
+    def get_alternative_suggestions(self, dataset_name: str, query: str, limit: int = 5):
+        # 1. Spelling Correction
+        corrected_query = ' '.join(self.spell_checker.correction(word) for word in query.split())
+        suggestions = {"corrected_query": corrected_query if corrected_query != query else None}
+
+        # 2. Query Log Suggestions
+        try:
+            cnx = self._get_db_connection()
+            cursor = cnx.cursor(dictionary=True)
+            # Find successful queries that are similar to the user's query
+            sql = ( "SELECT query_text, COUNT(*) as frequency FROM query_logs "
+                    "WHERE dataset_name = %s AND successful = 1 AND query_text LIKE %s AND query_text != %s "
+                    "GROUP BY query_text ORDER BY frequency DESC LIMIT %s")
+            # Use a broad LIKE match to find related queries
+            like_query = f"%{query}%"
+            cursor.execute(sql, (dataset_name, like_query, query, limit))
+            log_suggestions = [row['query_text'] for row in cursor.fetchall()]
+            cursor.close()
+            cnx.close()
+            suggestions["log_suggestions"] = log_suggestions
+        except mysql.connector.Error as err:
+            print(f"Failed to get log suggestions: {err}", flush=True)
+            suggestions["log_suggestions"] = []
+        
+        return suggestions
 
 # --- Create a single instance of the service to be used by the API endpoints ---
 service = SearchService()
@@ -316,4 +424,15 @@ async def suggest_endpoint(dataset_name: str, query: str, limit: int = 10):
     full_suggestions = [base_query + term for term in term_suggestions]
     
     return full_suggestions
+
+# The alternative suggestions endpoint
+@app.get("/suggest-alternatives/", response_model=dict)
+async def suggest_alternatives_endpoint(dataset_name: str, query: str, limit: int = 5):
+    """
+    Provides spelling correction and alternative query suggestions from logs.
+    """
+    if not query:
+        return {"corrected_query": None, "log_suggestions": []}
+
+    return service.get_alternative_suggestions(dataset_name, query, limit)
 

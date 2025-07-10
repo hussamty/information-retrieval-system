@@ -133,6 +133,22 @@ def suggest_route():
         # Handle connection errors
         return jsonify({"error": f"Failed to get suggestions: {e}"}), 503
 
+# --- Endpoint for alternative suggestions (spelling correction, query logs) ---
+@app.route('/suggest-alternatives/', methods=['GET'])
+def suggest_alternatives_route():
+    dataset_name = request.args.get('dataset_name')
+    query = request.args.get('query')
+
+    if not dataset_name or not query:
+        return jsonify({"error": "dataset_name and query are required."}), 400
+
+    try:
+        response = requests.get(f"{SEARCH_API_URL}/suggest-alternatives/", params={"dataset_name": dataset_name, "query": query})
+        response.raise_for_status()
+        return jsonify(response.json())
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": f"Failed to get alternative suggestions: {e}"}), 503
+
 # Check if the script is run directly (not imported)
 if __name__ == '__main__':
     # Start the Flask development server

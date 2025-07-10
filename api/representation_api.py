@@ -7,8 +7,9 @@ import mysql.connector # To connect to the MySQL database
 import os # For interacting with the operating system, like creating directories
 import joblib # For saving and loading Python objects (like ML models) efficiently
 import json # For working with JSON data (saving the inverted index)
-from sklearn.feature_extraction.text import TfidfVectorizer # To create a TF-IDF representation
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer # To create a TF-IDF representation
 from sklearn.cluster import KMeans # To perform K-Means clustering on the data
+from sklearn.decomposition import LatentDirichletAllocation # For topic modeling
 from rank_bm25 import BM25Okapi # To create a BM25 representation for ranking
 from sentence_transformers import SentenceTransformer # To create sentence embeddings using models like BERT
 import faiss # A library from Facebook AI for efficient similarity search
@@ -233,8 +234,35 @@ def perform_clustering(dataset_name: str, num_clusters: int, use_bert: bool = Fa
         # Load data matrix
         if use_bert:
             data_matrix = load_bert_embeddings(model_dir)
+            # Topic modeling is better suited for sparse data like TF-IDF/Count vectors
+            print("[CLUSTERING] Skipping topic modeling for BERT embeddings.", flush=True)
+            topic_model_results = None
         else:
+            # For TF-IDF, we can also perform topic modeling
             data_matrix = load_tfidf_matrix(model_dir)
+            print("[CLUSTERING] Performing Topic Modeling with LDA...", flush=True)
+            # We need the raw term counts for LDA, so we create a CountVectorizer
+            # We assume the same vocabulary as the TF-IDF model
+            tfidf_vectorizer = joblib.load(os.path.join(model_dir, 'tfidf_vectorizer.joblib'))
+            
+            cnx = mysql.connector.connect(**DB_CONFIG)
+            query_processed = f"SELECT processed_text FROM documents WHERE dataset = '{dataset_name}' AND processed_text IS NOT NULL AND processed_text != ''"
+            df_processed = pd.read_sql(query_processed, cnx)
+            corpus_processed = df_processed['processed_text'].tolist()
+            cnx.close()
+
+            count_vectorizer = CountVectorizer(vocabulary=tfidf_vectorizer.vocabulary_,
+                                               preprocessor=identity_preprocessor, 
+                                               tokenizer=space_tokenizer)
+            count_matrix = count_vectorizer.fit_transform(corpus_processed)
+
+            lda = LatentDirichletAllocation(n_components=num_clusters, random_state=42)
+            lda.fit(count_matrix)
+
+            # Save the LDA model and the count vectorizer
+            joblib.dump(lda, os.path.join(model_dir, 'lda_model.joblib'))
+            joblib.dump(count_vectorizer, os.path.join(model_dir, 'count_vectorizer.joblib'))
+            print("[CLUSTERING] LDA model saved.", flush=True)
 
         # Run KMeans
         print(f"[CLUSTERING] Running K-Means...", flush=True)

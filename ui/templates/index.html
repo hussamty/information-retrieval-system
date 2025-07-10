@@ -88,9 +88,15 @@
             
             <!-- Section for NER toggle and the main search button -->
             <div class="flex items-center justify-between">
-                <div class="flex items-center">
-                    <input id="ner-rerank-toggle" type="checkbox" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500">
-                    <label for="ner-rerank-toggle" class="ms-2 text-sm font-medium text-gray-900">تفعيل تحسين NER</label>
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center">
+                        <input id="ner-rerank-toggle" type="checkbox" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500">
+                        <label for="ner-rerank-toggle" class="ms-2 text-sm font-medium text-gray-900">تفعيل تحسين NER</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input id="cluster-rerank-toggle" type="checkbox" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500">
+                        <label for="cluster-rerank-toggle" class="ms-2 text-sm font-medium text-gray-900">تفعيل تحسين بالمجموعات</label>
+                    </div>
                 </div>
                 <button id="search-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-md focus:outline-none focus:shadow-outline transition-transform transform hover:scale-105">
                     بحث
@@ -100,6 +106,7 @@
 
         <!-- Divs to display search status (like "Searching...") and the final results -->
         <div id="status" class="mt-6 text-center"></div>
+        <div id="alternative-suggestions" class="mt-4 text-center"></div>
         <div id="results" class="mt-4 space-y-4 max-w-4xl mx-auto"></div>
     </div>
 
@@ -115,7 +122,9 @@
         const hybridWeightSlider = document.getElementById('hybrid_weight');
         const weightValueSpan = document.getElementById('weight-value');
         const nerToggle = document.getElementById('ner-rerank-toggle');
+        const clusterToggle = document.getElementById('cluster-rerank-toggle');
         const suggestionsBox = document.getElementById('suggestions-box');
+        const alternativeSuggestionsDiv = document.getElementById('alternative-suggestions');
         let suggestionTimeout; // A variable to hold the timeout for suggestion fetching
 
         // --- Add event listeners to interactive elements ---
@@ -202,6 +211,7 @@
                 k1: parseFloat(document.getElementById('bm25_k1').value),
                 b: parseFloat(document.getElementById('bm25_b').value),
                 enable_ner_reranking: nerToggle.checked,
+                enable_cluster_reranking: clusterToggle.checked,
                 hybrid_bm25_weight: parseFloat(hybridWeightSlider.value),
                 top_k: 10
             };
@@ -215,7 +225,11 @@
             // Update the UI to show that a search is in progress
             statusDiv.innerHTML = '<div class="loader"></div><p class="text-blue-600 font-semibold">جاري البحث...</p>';
             resultsDiv.innerHTML = ''; // Clear old results
+            alternativeSuggestionsDiv.innerHTML = ''; // Clear old suggestions
             searchBtn.disabled = true; // Disable the button to prevent multiple clicks
+
+            // Fetch alternative suggestions (spelling, logs) in parallel with the main search
+            fetchAlternativeSuggestions(payload.dataset_name, payload.query);
 
             try {
                 // Send the payload to our Flask backend's /search endpoint
@@ -256,11 +270,54 @@
                 resultEl.innerHTML = `
                     <div class="flex justify-between items-center mb-2">
                         <h3 class="text-lg font-bold text-gray-900">معرف المستند: ${result.doc_id}</h3>
-                        <p class="text-sm text-white bg-blue-500 font-bold py-1 px-3 rounded-full">${result.score.toFixed(4)}</p>
+                        <div>
+                            <p class="text-sm text-white bg-green-500 font-bold py-1 px-3 rounded-full inline-block">Cluster: ${result.cluster_id}</p>
+                            <p class="text-sm text-white bg-blue-500 font-bold py-1 px-3 rounded-full inline-block ml-2">${result.score.toFixed(4)}</p>
+                        </div>
                     </div>`;
                 resultEl.appendChild(p); // Append the paragraph with the text
                 resultsDiv.appendChild(resultEl); // Add the new result element to the page
             });
+        }
+
+        // Fetches and displays alternative suggestions
+        async function fetchAlternativeSuggestions(dataset, query) {
+            try {
+                const response = await fetch(`/suggest-alternatives/?dataset_name=${encodeURIComponent(dataset)}&query=${encodeURIComponent(query)}`);
+                const suggestions = await response.json();
+                displayAlternativeSuggestions(suggestions);
+            } catch (error) {
+                console.error("Alternative suggestion fetch failed:", error);
+            }
+        }
+
+        // Displays the alternative suggestions (spelling correction, query logs)
+        function displayAlternativeSuggestions(suggestions) {
+            alternativeSuggestionsDiv.innerHTML = ''; // Clear previous suggestions
+            let content = '';
+
+            // Display corrected query if available
+            if (suggestions.corrected_query) {
+                content += `<p class="mb-2">هل تقصد: <a href="#" class="text-blue-600 hover:underline" onclick="runNewSearch('${suggestions.corrected_query}')">${suggestions.corrected_query}</a></p>`;
+            }
+
+            // Display suggestions from query logs
+            if (suggestions.log_suggestions && suggestions.log_suggestions.length > 0) {
+                const logLinks = suggestions.log_suggestions.map(q => 
+                    `<a href="#" class="text-blue-600 hover:underline" onclick="runNewSearch('${q}')">${q}</a>`
+                ).join(', ');
+                content += `<p>استعلامات مشابهة: ${logLinks}</p>`;
+            }
+
+            if (content) {
+                alternativeSuggestionsDiv.innerHTML = `<div class="bg-gray-100 p-4 rounded-lg">${content}</div>`;
+            }
+        }
+
+        // Runs a new search with a suggested query
+        function runNewSearch(query) {
+            queryInput.value = query;
+            performSearch();
         }
     </script>
 </body>

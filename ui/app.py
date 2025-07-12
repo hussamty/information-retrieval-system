@@ -17,8 +17,9 @@ from config import API_PORTS, DB_CONFIG
 
 # Define the absolute path to the 'templates' directory where index.html is located
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
-# Create a Flask application instance, specifying the template folder
-app = Flask(__name__, template_folder=template_dir)
+static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'static'))
+# Create a Flask application instance, specifying the template and static folders
+app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
 
 # --- Define the URL for the backend search service ---
 SEARCH_API_URL = f"http://127.0.0.1:{API_PORTS['SEARCH']}"

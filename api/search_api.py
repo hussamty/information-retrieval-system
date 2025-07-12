@@ -1,5 +1,3 @@
-# api/search_api.py
-
 # Import necessary libraries
 from fastapi import FastAPI, HTTPException # For creating the API and handling errors
 from pydantic import BaseModel, Field # For defining data models and adding extra info to fields

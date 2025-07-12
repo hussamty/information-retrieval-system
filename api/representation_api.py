@@ -1,5 +1,3 @@
-# api/representation_api.py
-
 # Import necessary libraries
 from fastapi import FastAPI, BackgroundTasks, HTTPException # For creating the API and running background tasks
 from pydantic import BaseModel # For defining the structure of API requests

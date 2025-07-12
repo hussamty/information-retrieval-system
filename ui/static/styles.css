@@ -1,0 +1,11 @@
+/* Apply the Cairo font to the whole page and set a background color */
+body { font-family: 'Cairo', sans-serif; background-color: #f0f4f8; }
+/* Style for the loading spinner */
+.loader { border: 5px solid #f3f3f3; border-top: 5px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+/* Animation for the spinner */
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+/* Custom styling for the range slider to make it look consistent across browsers */
+input[type=range] { -webkit-appearance: none; margin: 10px 0; width: 100%; }
+input[type=range]:focus { outline: none; }
+input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 8.4px; cursor: pointer; background: #3b82f6; border-radius: 1.3px; }
+input[type=range]::-webkit-slider-thumb { height: 20px; width: 20px; border-radius: 50%; background: #ffffff; border: 2px solid #3b82f6; cursor: pointer; -webkit-appearance: none; margin-top: -7px; }

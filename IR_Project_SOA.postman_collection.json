@@ -162,40 +162,11 @@
 			]
 		},
 		{
-			"name": "[Step 2] Build Representations",
-			"request": {
-				"method": "POST",
-				"header": [],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n    \"dataset_name\": \"antique\"\n}",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8002/build-representations/",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8002",
-					"path": [
-						"build-representations",
-						""
-					]
-				},
-				"description": "يبدأ عملية بناء جميع النماذج والفهارس لمجموعة بيانات محددة. هذه العملية تعمل في الخلفية، راقب الطرفية للمتابعة."
-			},
-			"response": [
+			"name": "[Step 2] Build Representations (Split)",
+			"item": [
 				{
-					"name": "Example Response",
-					"originalRequest": {
+					"name": "Build TF-IDF",
+					"request": {
 						"method": "POST",
 						"header": [],
 						"body": {
@@ -208,7 +179,7 @@
 							}
 						},
 						"url": {
-							"raw": "http://127.0.0.1:8002/build-representations/",
+							"raw": "http://127.0.0.1:8002/build-tfidf/",
 							"protocol": "http",
 							"host": [
 								"127",
@@ -218,29 +189,149 @@
 							],
 							"port": "8002",
 							"path": [
-								"build-representations",
+								"build-tfidf",
 								""
 							]
-						}
-					},
-					"status": "OK",
-					"code": 200,
-					"_postman_previewlanguage": "json",
-					"header": [
-						{
-							"key": "content-length",
-							"value": "146"
 						},
-						{
-							"key": "content-type",
-							"value": "application/json"
-						}
-					],
-					"cookie": [],
-					"body": "{\n    \"message\": \"Representation building for 'antique' has started in the background. Monitor the console of the representation_api for progress.\"\n}"
+						"description": "يبدأ عملية بناء تمثيل TF-IDF. هذه العملية تعمل في الخلفية."
+					},
+					"response": []
+				},
+				{
+					"name": "Build BM25",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"dataset_name\": \"antique\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://127.0.0.1:8002/build-bm25/",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "8002",
+							"path": [
+								"build-bm25",
+								""
+							]
+						},
+						"description": "يبدأ عملية بناء تمثيل BM25. هذه العملية تعمل في الخلفية."
+					},
+					"response": []
+				},
+				{
+					"name": "Build BERT & FAISS",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"dataset_name\": \"antique\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://127.0.0.1:8002/build-bert/",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "8002",
+							"path": [
+								"build-bert",
+								""
+							]
+						},
+						"description": "يبدأ عملية بناء تمثيلات BERT وفهرس FAISS. هذه العملية تعمل في الخلفية."
+					},
+					"response": []
+				},
+				{
+					"name": "Build Inverted Index",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"dataset_name\": \"antique\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://127.0.0.1:8002/build-inverted-index/",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "8002",
+							"path": [
+								"build-inverted-index",
+								""
+							]
+						},
+						"description": "يبدأ عملية بناء الفهرس المقلوب. هذه العملية تعمل في الخلفية."
+					},
+					"response": []
 				}
-			]
-		},
+			],
+			"description": "مجموعة طلبات لبناء كل تمثيل على حدة."
+        },
+        {
+            "name": "[Step 2] Build Representations (All-in-One)",
+            "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"dataset_name\": \"antique\"\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8002/build-representations/",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8002",
+                    "path": [
+                        "build-representations",
+                        ""
+                    ]
+                },
+                "description": "يبدأ عملية بناء جميع النماذج والفهارس لمجموعة بيانات محددة. هذه العملية تعمل في الخلفية، راقب الطرفية للمتابعة."
+            },
+            "response": []
+        },
 		{
 			"name": "[Step 3] Perform Search",
 			"request": {

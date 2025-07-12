@@ -1,5 +1,3 @@
-# api/data_loader_api.py
-
 # Import necessary libraries
 from fastapi import FastAPI, BackgroundTasks # FastAPI for creating the API, BackgroundTasks for running long processes without making the user wait
 from pydantic import BaseModel # For creating data models to define the structure of requests

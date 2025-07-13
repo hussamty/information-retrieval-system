@@ -4,19 +4,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام استرجاع المعلومات</title>
+    <title>Seekly</title>
     <!-- Include Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Include the 'Cairo' font from Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="../static/styles.css">
+    <link rel="icon" type="image/png" sizes="32x32" href="seekly_favicon_32x32.png">
 </head>
 <body class="text-gray-800">
     <!-- Main container for the page content -->
     <div class="container mx-auto p-4 md:p-8">
         <!-- Page header -->
         <div class="text-center mb-8">
-            <h1 class="text-4xl md:text-5xl font-bold text-gray-900">نظام استرجاع المعلومات</h1>
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-900">Seekly</h1>
             <p class="text-lg text-gray-600 mt-2">ابحث في مجموعات البيانات باستخدام نماذج متقدمة</p>
         </div>
 
@@ -27,15 +29,16 @@
                 <div>
                     <label for="dataset" class="block text-gray-700 font-bold mb-2">اختر مجموعة البيانات:</label>
                     <select id="dataset" class="shadow-sm appearance-none border rounded-lg w-full py-2 px-3 text-gray-700">
-                        <option value="antique">Antique (أسئلة وأجوبة عامة)</option>
-                        <option value="beir/quora">Quora (تكرار الأسئلة)</option>
+                        <option value="antique">Antique</option>
+                        <option value="beir/quora">Quora</option>
                         <option value="lotte/lifestyle/dev">LOTTE (Lifestyle)</option>
+                        <option value="wikir/en1k/test">Wikir (EN)</option>
                     </select>
                 </div>
                 <div>
                     <label for="model_type" class="block text-gray-700 font-bold mb-2">اختر نموذج البحث:</label>
                     <select id="model_type" class="shadow-sm appearance-none border rounded-lg w-full py-2 px-3 text-gray-700">
-                        <option value="hybrid">نموذج هجين (Hybrid)</option>
+                        <option value="hybrid">Hybrid</option>
                         <option value="bm25">BM25</option>
                         <option value="bert">BERT</option>
                         <option value="tfidf">TF-IDF</option>
